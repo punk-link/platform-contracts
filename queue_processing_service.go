@@ -2,7 +2,6 @@ package platformcontracts
 
 import (
 	"encoding/json"
-	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/punk-link/logger"
@@ -54,13 +53,7 @@ func (t *QueueProcessingService) createJstStreamIfNotExist(err error, jetStreamC
 	stream, _ := jetStreamContext.StreamInfo(PLATFORM_URL_RESPONSE_STREAM_NAME)
 	if stream == nil {
 		t.logger.LogInfo("Creating Nats stream %s and subjects %s", PLATFORM_URL_RESPONSE_STREAM_NAME, PLATFORM_URL_RESPONSE_STREAM_SUBJECT)
-		_, err = jetStreamContext.AddStream(&nats.StreamConfig{
-			Name:      PLATFORM_URL_RESPONSE_STREAM_NAME,
-			MaxAge:    time.Hour * 24,
-			Retention: nats.WorkQueuePolicy,
-			Storage:   nats.FileStorage,
-			Subjects:  []string{PLATFORM_URL_RESPONSE_STREAM_SUBJECT},
-		})
+		_, err = jetStreamContext.AddStream(DefaultReducerConfig)
 	}
 
 	return err
