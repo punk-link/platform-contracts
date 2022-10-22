@@ -28,7 +28,6 @@ func (t *QueueProcessingService) Process(platformer Platformer) {
 		return
 	}
 
-	responseSubjectName := GetResponsetStreamSubject(platformer.GetPlatformName())
 	for {
 		messages, _ := subscription.Fetch(platformer.GetBatchSize())
 		containers := make([]UpcContainer, len(messages))
@@ -43,7 +42,7 @@ func (t *QueueProcessingService) Process(platformer Platformer) {
 
 		urlResults := platformer.GetReleaseUrlsByUpc(containers)
 		err = t.createJstStreamIfNotExist(nil, jetStreamContext)
-		_ = t.publishUrlResults(err, jetStreamContext, responseSubjectName, urlResults)
+		_ = t.publishUrlResults(err, jetStreamContext, urlResults)
 	}
 }
 
@@ -54,13 +53,13 @@ func (t *QueueProcessingService) createJstStreamIfNotExist(err error, jetStreamC
 
 	stream, _ := jetStreamContext.StreamInfo(PLATFORM_URL_RESPONSE_STREAM_NAME)
 	if stream == nil {
-		t.logger.LogInfo("Creating Nats stream %s and subjects %s", PLATFORM_URL_RESPONSE_STREAM_NAME, PLATFORM_URL_RESPONSE_STREAM_SUBJECTS)
+		t.logger.LogInfo("Creating Nats stream %s and subjects %s", PLATFORM_URL_RESPONSE_STREAM_NAME, PLATFORM_URL_RESPONSE_STREAM_SUBJECT)
 		_, err = jetStreamContext.AddStream(&nats.StreamConfig{
 			Name:      PLATFORM_URL_RESPONSE_STREAM_NAME,
 			MaxAge:    time.Hour * 24,
 			Retention: nats.WorkQueuePolicy,
 			Storage:   nats.FileStorage,
-			Subjects:  []string{PLATFORM_URL_RESPONSE_STREAM_SUBJECTS},
+			Subjects:  []string{PLATFORM_URL_RESPONSE_STREAM_SUBJECT},
 		})
 	}
 
@@ -77,14 +76,14 @@ func (t *QueueProcessingService) getSubscription(err error, jetStreamContext nat
 	return jetStreamContext.PullSubscribe(subject, consumerName)
 }
 
-func (t *QueueProcessingService) publishUrlResults(err error, jetStreamContext nats.JetStreamContext, subjectName string, urlResults []UrlResultContainer) error {
+func (t *QueueProcessingService) publishUrlResults(err error, jetStreamContext nats.JetStreamContext, urlResults []UrlResultContainer) error {
 	if err != nil {
 		return err
 	}
 
 	for _, urlResult := range urlResults {
 		json, _ := json.Marshal(urlResult)
-		jetStreamContext.Publish(subjectName, json)
+		jetStreamContext.Publish(PLATFORM_URL_RESPONSE_STREAM_SUBJECT, json)
 	}
 
 	return err
