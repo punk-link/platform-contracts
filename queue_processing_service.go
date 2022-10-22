@@ -30,8 +30,8 @@ func (t *QueueProcessingService) Process(platformer Platformer) {
 
 	responseSubjectName := GetResponsetStreamSubject(platformer.GetPlatformName())
 	for {
-		containers := make([]UpcContainer, 10)
-		messages, _ := subscription.Fetch(10)
+		messages, _ := subscription.Fetch(platformer.GetBatchSize())
+		containers := make([]UpcContainer, len(messages))
 		for i, message := range messages {
 			message.Ack()
 
