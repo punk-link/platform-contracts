@@ -1,7 +1,9 @@
 package platformcontracts
 
 import (
+	"context"
 	"encoding/json"
+	"sync"
 
 	"github.com/nats-io/nats.go"
 	"github.com/punk-link/logger"
@@ -19,7 +21,9 @@ func NewQueueProcessingService(logger logger.Logger, natsConnection *nats.Conn) 
 	}
 }
 
-func (t *QueueProcessingService) Process(platformer Platformer) {
+func (t *QueueProcessingService) Process(ctx context.Context, wg *sync.WaitGroup, platformer Platformer) {
+	defer wg.Done()
+
 	jetStreamContext, err := t.natsConnection.JetStream()
 	subscription, err := t.getSubscription(err, jetStreamContext, platformer.GetPlatformName())
 	if err != nil {
@@ -28,20 +32,25 @@ func (t *QueueProcessingService) Process(platformer Platformer) {
 	}
 
 	for {
-		messages, _ := subscription.Fetch(platformer.GetBatchSize())
-		containers := make([]UpcContainer, len(messages))
-		for i, message := range messages {
-			message.Ack()
+		select {
+		case <-ctx.Done():
+			return
+		default:
+			messages, _ := subscription.Fetch(platformer.GetBatchSize())
+			containers := make([]UpcContainer, len(messages))
+			for i, message := range messages {
+				message.Ack()
 
-			var container UpcContainer
-			_ = json.Unmarshal(message.Data, &container)
+				var container UpcContainer
+				_ = json.Unmarshal(message.Data, &container)
 
-			containers[i] = container
+				containers[i] = container
+			}
+
+			urlResults := platformer.GetReleaseUrlsByUpc(containers)
+			err = t.createJstStreamIfNotExist(nil, jetStreamContext)
+			_ = t.publishUrlResults(err, jetStreamContext, urlResults)
 		}
-
-		urlResults := platformer.GetReleaseUrlsByUpc(containers)
-		err = t.createJstStreamIfNotExist(nil, jetStreamContext)
-		_ = t.publishUrlResults(err, jetStreamContext, urlResults)
 	}
 }
 
